@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: job-search-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: job_search_db
+      MYSQL_USER: jobuser
+      MYSQL_PASSWORD: jobpass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - job-search-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # API Service
+  api-service:
+    build:
+      context: ./api-module
+      dockerfile: Dockerfile
+    container_name: job-search-api
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/job_search_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: password
+      BOT_SERVICE_URL: http://bot-service:8081
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - job-search-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # BOT Service
+  bot-service:
+    build:
+      context: ./bot-module
+      dockerfile: Dockerfile
+    container_name: job-search-bot
+    ports:
+      - "8081:8081"
+    environment:
+      API_SERVICE_URL: http://api-service:8080
+    depends_on:
+      - api-service
+    networks:
+      - job-search-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/bot/v1/bot/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # UI Service
+  ui-service:
+    build:
+      context: ./ui-module
+      dockerfile: Dockerfile
+    container_name: job-search-ui
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-service
+      - bot-service
+    networks:
+      - job-search-network
+    environment:
+      - VITE_API_URL=http://localhost:8080
+      - VITE_BOT_URL=http://localhost:8081
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: job-search-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - api-service
+      - bot-service
+      - ui-service
+    networks:
+      - job-search-network
+
+volumes:
+  mysql_data:
+
+networks:
+  job-search-network:
+    driver: bridge 
