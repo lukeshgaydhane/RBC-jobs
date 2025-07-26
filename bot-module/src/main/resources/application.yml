@@ -54,3 +54,10 @@ cors:
   allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
   allowed-headers: "*"
   allow-credentials: true 
+
+# Gemini API Configuration
+# Replace with your actual Gemini API endpoint and key
+gemini:
+  api:
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=
+    key: AIzaSyDBVqmV0bDW2D3pXhDF8sFFuO_lLNTdnrE

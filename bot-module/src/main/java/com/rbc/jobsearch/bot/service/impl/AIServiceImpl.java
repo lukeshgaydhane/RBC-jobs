@@ -3,6 +3,7 @@ package com.rbc.jobsearch.bot.service.impl;
 import com.rbc.jobsearch.bot.model.JobRecommendation;
 import com.rbc.jobsearch.bot.model.ChatMessage;
 import com.rbc.jobsearch.bot.service.AIService;
+import com.rbc.jobsearch.bot.service.GeminiQnaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,11 @@ import java.util.Random;
 public class AIServiceImpl implements AIService {
 
     private final Random random = new Random();
+    private final GeminiQnaService geminiQnaService;
+
+    public AIServiceImpl(GeminiQnaService geminiQnaService) {
+        this.geminiQnaService = geminiQnaService;
+    }
 
     @Override
     public List<JobRecommendation> getJobRecommendations(String userId, List<String> skills, String location, Double expectedSalary) {
@@ -48,10 +54,11 @@ public class AIServiceImpl implements AIService {
     @Override
     public ChatMessage processChatMessage(ChatMessage message) {
         log.info("Processing chat message: {}", message.getMessage());
-        
-        // Placeholder implementation - will be replaced with actual chatbot model
-        String botResponse = generateBotResponse(message.getMessage());
-        
+
+        // Use GeminiQnaService for actual chatbot response
+        String geminiResponse = geminiQnaService.getAnswer(message.getMessage());
+        String botResponse = extractGeminiText(geminiResponse);
+
         return ChatMessage.builder()
                 .id("bot-" + System.currentTimeMillis())
                 .userId(message.getUserId())
@@ -123,19 +130,17 @@ public class AIServiceImpl implements AIService {
         return extractedSkills;
     }
 
-    private String generateBotResponse(String userMessage) {
-        String lowerMessage = userMessage.toLowerCase();
-        
-        if (lowerMessage.contains("hello") || lowerMessage.contains("hi")) {
-            return "Hello! I'm your job search assistant. How can I help you find your next opportunity?";
-        } else if (lowerMessage.contains("job") && lowerMessage.contains("recommend")) {
-            return "I'd be happy to recommend jobs for you! Please share your skills and preferred location.";
-        } else if (lowerMessage.contains("salary") || lowerMessage.contains("pay")) {
-            return "Salary information varies by role and experience. I can help you find jobs within your expected salary range.";
-        } else if (lowerMessage.contains("skill") || lowerMessage.contains("experience")) {
-            return "I can analyze your skills and match them with relevant job opportunities. What are your key skills?";
-        } else {
-            return "I'm here to help with your job search! You can ask me about job recommendations, salary information, or skill matching.";
+    // Helper method to extract the text from Gemini's JSON response
+    private String extractGeminiText(String geminiResponse) {
+        // Simple extraction: look for "text":"..." in the response
+        if (geminiResponse == null) return "Sorry, I couldn't get a response from Gemini.";
+        int idx = geminiResponse.indexOf("\"text\":");
+        if (idx == -1) return geminiResponse;
+        int start = geminiResponse.indexOf('"', idx + 7) + 1;
+        int end = geminiResponse.indexOf('"', start);
+        if (start > 0 && end > start) {
+            return geminiResponse.substring(start, end);
         }
+        return geminiResponse;
     }
 } 
